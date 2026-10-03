@@ -18,15 +18,28 @@
   .ios-field{background:rgba(120,120,128,.12);border-radius:12px;padding:.65rem .9rem;outline:none;width:100%}
   .ios-field:focus{box-shadow:0 0 0 3px rgba(10,132,255,.35)}
   .pill{border-radius:999px;padding:.3rem .7rem;font-weight:600;font-size:13px;appearance:none;-webkit-appearance:none;border:0;outline:none;text-align:center}
+  .pill{display:inline-flex;align-items:center;gap:.35rem;cursor:pointer;white-space:nowrap}
+  @keyframes pop{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
+  @keyframes sheet{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}
+  .m-pop{animation:pop .14s ease-out;transform-origin:top left}
+  .m-sheet{animation:sheet .22s cubic-bezier(.2,.8,.2,1)}
+  .mi{display:flex;align-items:center;gap:.75rem;width:100%;padding:.8rem 1rem;font-size:16px;text-align:left;transition:background .1s}
+  .mi:active{background:rgba(120,120,128,.2)}
+  .mi + .mi{border-top:1px solid rgba(120,120,128,.18)}
   .p-Pendiente{background:rgba(255,159,10,.18);color:#C77700}
   .p-Procesado{background:rgba(48,209,88,.18);color:#1E9E45}
   .p-Observado{background:rgba(255,69,58,.18);color:#D92D20}
   .dark .p-Pendiente{color:#FFB340}.dark .p-Procesado{color:#4ADE80}.dark .p-Observado{color:#FF6B61}
   .seg-on{background:#fff;color:#000;box-shadow:0 1px 4px rgba(0,0,0,.18)}
   .dark .seg-on{background:#636366;color:#fff}
+  .ambient{position:fixed;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(60% 40% at 12% 0%,rgba(10,132,255,.20),transparent 70%),radial-gradient(50% 40% at 92% 8%,rgba(191,90,242,.15),transparent 70%),radial-gradient(60% 40% at 50% 100%,rgba(48,209,88,.12),transparent 70%)}
+  .dark .ambient{background:radial-gradient(60% 40% at 12% 0%,rgba(10,132,255,.28),transparent 70%),radial-gradient(50% 40% at 92% 8%,rgba(191,90,242,.22),transparent 70%),radial-gradient(60% 40% at 50% 100%,rgba(48,209,88,.14),transparent 70%)}
+  .lg{background:linear-gradient(145deg,rgba(255,255,255,.80),rgba(255,255,255,.54));backdrop-filter:blur(28px) saturate(190%);-webkit-backdrop-filter:blur(28px) saturate(190%);border:1px solid rgba(255,255,255,.75);box-shadow:0 10px 34px rgba(0,0,0,.07),inset 0 1px 0 rgba(255,255,255,.95)}
+  .dark .lg{background:linear-gradient(145deg,rgba(66,66,72,.55),rgba(28,28,30,.55));border-color:rgba(255,255,255,.12);box-shadow:0 10px 34px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.12)}
 </style>
 </head>
 <body class="bg-[#F2F2F7] text-black dark:bg-black dark:text-white min-h-screen transition-colors">
+<div class="ambient" aria-hidden="true"></div>
 
 <!-- LOGIN -->
 <section id="login" class="min-h-screen flex items-center justify-center p-6">
@@ -101,11 +114,12 @@
 
     <!-- Vista Avance -->
     <section id="v-avance" class="hidden">
-      <div id="widgets" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4"></div>
-      <div class="grid md:grid-cols-2 gap-4">
-        <div class="glass rounded-3xl p-4 bg-white/70 dark:bg-zinc-900/70 shadow-sm"><h3 class="font-semibold mb-2">Por almacén</h3><div class="h-72"><canvas id="chAlm"></canvas></div></div>
-        <div class="glass rounded-3xl p-4 bg-white/70 dark:bg-zinc-900/70 shadow-sm"><h3 class="font-semibold mb-2">Por usuario</h3><div class="h-72"><canvas id="chUsr"></canvas></div></div>
+      <div class="flex p-1 rounded-2xl bg-zinc-300/40 dark:bg-zinc-800 text-sm font-semibold mb-4 max-w-md">
+        <button data-av="mis" class="av flex-1 py-2 rounded-xl transition">Mis almacenes</button>
+        <button data-av="general" class="av flex-1 py-2 rounded-xl transition">General</button>
+        <button data-av="comp" class="av flex-1 py-2 rounded-xl transition">Comparativa</button>
       </div>
+      <div id="avBody"></div>
     </section>
   </main>
 
@@ -118,6 +132,8 @@
   </nav>
 </div>
 
+<div id="mback" class="fixed inset-0 z-40 hidden"></div>
+<div id="menu" class="glass fixed z-50 hidden overflow-hidden rounded-2xl bg-white/85 dark:bg-zinc-800/85 shadow-2xl shadow-black/20 ring-1 ring-black/5 dark:ring-white/10"></div>
 <div id="toast" class="fixed left-1/2 -translate-x-1/2 bottom-24 z-50 px-4 py-2 rounded-full bg-black/80 text-white text-sm opacity-0 pointer-events-none transition-opacity"></div>
 
 <script>
@@ -128,7 +144,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbwMAvC-uED-7nBwKEK2PiS6
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const COLORS = {Pendiente:'#FF9F0A', Procesado:'#30D158', Observado:'#FF453A'};
-const S = { u:null, k:null, rol:'', alms:[], rows:[], scope:'mis', tab:'guias' };
+const S = { u:null, k:null, rol:'', alms:[], rows:[], scope:'mis', tab:'guias', av:'mis' };
 let charts = {};
 
 /* ---------- API ---------- */
@@ -158,6 +174,8 @@ async function login(u,k){
   $('who').textContent = S.u + ' · ' + S.rol;
   S.scope = S.rol==='Administrador' ? 'todos' : 'mis';
   $('segWrap').classList.toggle('hidden', S.rol==='Administrador');
+  S.av = S.rol==='Administrador' ? 'general' : 'mis';
+  document.querySelector('[data-av=mis]').classList.toggle('hidden', S.rol==='Administrador');
   await load();
 }
 $('lbtn').onclick = async () => {
@@ -184,9 +202,16 @@ $('sync').onclick = () => load(true);
 async function load(msg){
   const r = await api({action:'list'});
   if(!r.ok) return toast(r.error);
-  S.rows = r.rows;
+  S.rows = r.rows.map(x => ({...x, ...normFecha(x.fecha)}));
   fillAlmacenes(); render();
   if(msg) toast('Datos actualizados');
+}
+function normFecha(v){
+  if(!v) return {iso:'', fecha:''};
+  if(/^\d{4}-\d{2}-\d{2}$/.test(v)) return {iso:v, fecha:v.split('-').reverse().join('/')};
+  const d = new Date(v); if(isNaN(d)) return {iso:'', fecha:String(v)};
+  const p = n => String(n).padStart(2,'0');
+  return {iso:`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`, fecha:`${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`};
 }
 function misAlmacenes(){
   const set = new Set(S.alms.map(a=>a.toLowerCase()));
@@ -209,11 +234,11 @@ function filtered(){
   return scoped().filter(r =>
     (!q || r.guia.toLowerCase().includes(q) || r.po.toLowerCase().includes(q)) &&
     (!a || r.almacen===a) && (!e || r.estado===e) &&
-    (!d1 || r.fecha>=d1) && (!d2 || r.fecha<=d2));
+    (!d1 || r.iso>=d1) && (!d2 || r.iso<=d2));
 }
 
 /* ---------- Render Guías ---------- */
-const estSel = r => `<select class="pill p-${r.estado} est" data-row="${r.row}">${['Pendiente','Procesado','Observado'].map(x=>`<option ${x===r.estado?'selected':''}>${x}</option>`).join('')}</select>`;
+const estSel = r => `<button type="button" class="pill p-${r.estado} estbtn active:scale-95 transition" data-row="${r.row}">${r.estado}<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="opacity-70"><path d="M2 3.5l3 3 3-3"/></svg></button>`;
 const obsIn = r => `<input class="ios-field obs" data-row="${r.row}" value="${esc(r.obs)}" placeholder="Agregar nota…">`;
 function render(){
   const rows = filtered();
@@ -240,9 +265,47 @@ async function save(row, patch, el){
 }
 document.addEventListener('change', e => {
   const t=e.target;
-  if(t.classList.contains('est')) save(t.dataset.row, {estado:t.value});
-  else if(t.classList.contains('obs')) save(t.dataset.row, {obs:t.value});
+  if(t.classList.contains('obs')) save(t.dataset.row, {obs:t.value});
 });
+
+/* ---------- Menú de estado estilo iOS ---------- */
+const DOT = {Pendiente:'#FF9F0A', Procesado:'#30D158', Observado:'#FF453A'};
+let mRow = null;
+function closeMenu(){ $('menu').classList.add('hidden'); $('mback').classList.add('hidden'); mRow=null; }
+function openMenu(btn){
+  const r = S.rows.find(x => x.row==btn.dataset.row); if(!r) return;
+  mRow = r.row;
+  const m = $('menu'), back = $('mback'), mobile = innerWidth < 768;
+  m.innerHTML =
+    (mobile ? `<p class="text-center text-xs text-zinc-500 py-3 border-b border-zinc-500/20">Cambiar estado de ${esc(r.guia)}</p>` : '') +
+    ['Pendiente','Procesado','Observado'].map(e => `<button class="mi" data-e="${e}">
+      <span class="w-3 h-3 rounded-full shrink-0" style="background:${DOT[e]}"></span>
+      <span class="flex-1 ${e===r.estado?'font-semibold':''}">${e}</span>
+      ${e===r.estado ? '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#0A84FF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3.2L13 5"/></svg>' : ''}</button>`).join('') +
+    (mobile ? '<button class="mi justify-center font-semibold text-[#0A84FF]" data-e="">Cancelar</button>' : '');
+  m.style.cssText = ''; m.classList.remove('m-pop','m-sheet');
+  back.className = 'fixed inset-0 z-40' + (mobile ? ' bg-black/30' : '');
+  m.classList.remove('hidden');
+  if(mobile){
+    m.style.left='12px'; m.style.right='12px'; m.style.bottom='calc(12px + env(safe-area-inset-bottom))';
+    m.classList.add('m-sheet');
+  } else {
+    const b = btn.getBoundingClientRect(), h = m.offsetHeight, w = 190;
+    const top = (b.bottom + 6 + h > innerHeight) ? b.top - h - 6 : b.bottom + 6;
+    m.style.width = w+'px'; m.style.top = top+'px';
+    m.style.left = Math.max(8, Math.min(b.left, innerWidth - w - 8))+'px';
+    m.classList.add('m-pop');
+  }
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('.estbtn'); if(b){ openMenu(b); return; }
+  const it = e.target.closest('.mi');
+  if(it){ const row = mRow, est = it.dataset.e; closeMenu(); const r = S.rows.find(x => x.row==row); if(r && est && est!==r.estado) save(row, {estado:est}); return; }
+  if(e.target.id==='mback') closeMenu();
+});
+document.addEventListener('keydown', e => e.key==='Escape' && closeMenu());
+addEventListener('scroll', () => { if(mRow && innerWidth>=768) closeMenu(); }, true);
+addEventListener('resize', closeMenu);
 ['q','fAlm','fEst','fDe','fHa'].forEach(id => $(id).addEventListener('input', render));
 document.querySelectorAll('.seg').forEach(b => b.onclick = () => { S.scope=b.dataset.scope; fillAlmacenes(); render(); });
 
@@ -272,22 +335,91 @@ document.querySelectorAll('.tab').forEach(b => b.onclick = () => {
 });
 document.querySelector('.tab').classList.add('text-[#0A84FF]');
 
-function drawCharts(){
-  const rows = scoped(), dark = document.documentElement.classList.contains('dark');
-  const cnt = e => rows.filter(r=>r.estado===e).length;
-  const W = [['Total',rows.length,'#0A84FF'],['Procesadas',cnt('Procesado'),COLORS.Procesado],['Pendientes',cnt('Pendiente'),COLORS.Pendiente],['Observadas',cnt('Observado'),COLORS.Observado]];
-  $('widgets').innerHTML = W.map(([l,n,c]) => `<div class="glass rounded-3xl p-4 bg-white/70 dark:bg-zinc-900/70 shadow-sm"><div class="w-3 h-3 rounded-full mb-3" style="background:${c}"></div><p class="text-3xl font-bold">${n}</p><p class="text-sm text-zinc-500">${l}</p></div>`).join('');
-  const stack = key => {
-    const labels = [...new Set(rows.map(r => r[key] || '(sin dato)'))].sort();
-    return {labels, datasets: ['Procesado','Pendiente','Observado'].map(e => ({label:e, backgroundColor:COLORS[e], borderRadius:6, data:labels.map(l => rows.filter(r => (r[key]||'(sin dato)')===l && r.estado===e).length)}))};
-  };
-  const txt = dark ? '#EBEBF5' : '#3C3C43', grid = dark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.06)';
-  const opt = {responsive:true, maintainAspectRatio:false, plugins:{legend:{labels:{color:txt}}}, scales:{x:{stacked:true,ticks:{color:txt},grid:{display:false}}, y:{stacked:true,ticks:{color:txt,precision:0},grid:{color:grid}}}};
-  [['chAlm','almacen'],['chUsr','usuario']].forEach(([id,key]) => {
-    if(charts[id]) charts[id].destroy();
-    charts[id] = new Chart($(id), {type:'bar', data:stack(key), options:opt});
-  });
+const ESTS = ['Procesado','Pendiente','Observado'], CARD = 'lg rounded-[28px] p-5';
+const LBL = {Procesado:'Procesadas', Pendiente:'Pendientes', Observado:'Observadas'};
+const pct = (n,t) => t ? Math.round(n*100/t) : 0;
+const tally = (rows,key) => { const m={}; rows.forEach(r => { const k=r[key]||'Sin asignar'; m[k]=(m[k]||0)+1; }); return Object.entries(m).sort((a,b)=>b[1]-a[1]); };
+const bars = (list,color,n=5) => { const max=list[0]?list[0][1]:1; return list.slice(0,n).map(([k,v]) => `<div class="mb-2.5"><div class="flex justify-between text-[13px] mb-1"><span class="truncate pr-2">${esc(k)}</span><span class="font-semibold">${v}</span></div><div class="h-1.5 rounded-full bg-zinc-500/15"><div class="h-1.5 rounded-full" style="width:${v*100/max}%;background:${color}"></div></div></div>`).join('') || '<p class="text-sm text-zinc-500">Sin datos</p>'; };
+function ring(c,t){
+  const R=54, C=2*Math.PI*R; let off=0;
+  const seg = ['Procesado','Observado','Pendiente'].map(e => { const len=t?C*c[e]/t:0; const s=`<circle cx="70" cy="70" r="${R}" fill="none" stroke="${COLORS[e]}" stroke-width="16" stroke-dasharray="${len} ${C-len}" stroke-dashoffset="${-off}" transform="rotate(-90 70 70)"/>`; off+=len; return s; }).join('');
+  return `<svg viewBox="0 0 140 140" class="w-44 h-44 shrink-0"><circle cx="70" cy="70" r="${R}" fill="none" stroke="rgba(120,120,128,.18)" stroke-width="16"/>${seg}<text x="70" y="70" text-anchor="middle" class="fill-current" style="font-size:28px;font-weight:700">${pct(c.Procesado,t)}%</text><text x="70" y="90" text-anchor="middle" style="font-size:11px;fill:#8E8E93">procesado</text></svg>`;
 }
+function stackData(rows,key){
+  const L=[...new Set(rows.map(r => r[key]||'Sin asignar'))].sort();
+  return {labels:L, datasets:ESTS.map(e => ({label:e, backgroundColor:COLORS[e], borderRadius:6, data:L.map(l => rows.filter(r => (r[key]||'Sin asignar')===l && r.estado===e).length)}))};
+}
+
+function drawCharts(){
+  document.querySelectorAll('.av').forEach(b => b.classList.toggle('seg-on', b.dataset.av===S.av));
+  Object.values(charts).forEach(c => c.destroy()); charts = {};
+  const dark = document.documentElement.classList.contains('dark');
+  const txt = dark ? '#EBEBF5' : '#3C3C43', grid = dark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.06)';
+  Chart.defaults.font.family = '-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif';
+  if(S.av==='comp') return drawComp(txt,grid);
+
+  const rows = S.av==='general' ? S.rows : scoped(), t = rows.length;
+  const c = {}; ESTS.forEach(e => c[e] = rows.filter(r => r.estado===e).length);
+  const icon = {Total:'▤', Procesado:'✓', Pendiente:'◔', Observado:'!'};
+  const tiles = [['Total','Total',t,'#0A84FF'],['Procesado','Procesadas',c.Procesado,COLORS.Procesado],['Pendiente','Pendientes',c.Pendiente,COLORS.Pendiente],['Observado','Observadas',c.Observado,COLORS.Observado]];
+  $('avBody').innerHTML = `
+    <div class="${CARD} mb-4 flex flex-col sm:flex-row items-center gap-6">
+      ${ring(c,t)}
+      <div class="flex-1 w-full">
+        <h2 class="text-xl font-bold">${S.av==='general' ? 'Avance general' : 'Avance de mis almacenes'}</h2>
+        <p class="text-sm text-zinc-500 mb-4">${c.Procesado} de ${t} guías procesadas</p>
+        ${ESTS.map(e => `<div class="flex items-center gap-3 py-2 border-t border-zinc-500/15"><span class="w-3 h-3 rounded-full" style="background:${COLORS[e]}"></span><span class="flex-1">${LBL[e]}</span><span class="font-semibold">${c[e]}</span><span class="w-12 text-right text-sm text-zinc-500">${pct(c[e],t)}%</span></div>`).join('')}
+      </div>
+    </div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+      ${tiles.map(([k,l,n,col]) => `<div class="${CARD}"><div class="w-9 h-9 rounded-[11px] flex items-center justify-center text-white font-bold mb-3" style="background:${col}">${icon[k]}</div><p class="text-4xl font-bold tracking-tight">${n}</p><p class="text-sm text-zinc-500">${l}</p><div class="h-1.5 rounded-full bg-zinc-500/15 mt-3"><div class="h-1.5 rounded-full" style="width:${k==='Total'?100:pct(n,t)}%;background:${col}"></div></div><p class="text-xs text-zinc-500 mt-1.5">${k==='Total'?100:pct(n,t)}% del total</p></div>`).join('')}
+    </div>
+    <div class="grid md:grid-cols-3 gap-4 mb-4">
+      ${ESTS.map(e => { const sub = rows.filter(r => r.estado===e); return `<div class="${CARD}"><div class="flex items-center justify-between mb-4"><div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full" style="background:${COLORS[e]}"></span><h3 class="font-semibold">${LBL[e]}</h3></div><span class="text-2xl font-bold">${sub.length}</span></div><p class="text-xs text-zinc-500 mb-2">Por almacén</p>${bars(tally(sub,'almacen'),COLORS[e])}<p class="text-xs text-zinc-500 mt-4 mb-2">Por usuario</p>${bars(tally(sub,'usuario'),COLORS[e])}</div>`; }).join('')}
+    </div>
+    <div class="grid md:grid-cols-2 gap-4 mb-4">
+      <div class="${CARD}"><h3 class="font-semibold mb-3">Por almacén</h3><div class="h-72"><canvas id="chAlm"></canvas></div></div>
+      <div class="${CARD}"><h3 class="font-semibold mb-3">Por usuario</h3><div class="h-72"><canvas id="chUsr"></canvas></div></div>
+    </div>
+    <div class="${CARD}"><h3 class="font-semibold mb-3">Evolución por fecha</h3><div class="h-72"><canvas id="chFec"></canvas></div></div>`;
+
+  const leg = {labels:{color:txt, usePointStyle:true, boxWidth:8}};
+  const scales = stk => ({x:{stacked:stk, ticks:{color:txt}, grid:{display:false}}, y:{stacked:stk, beginAtZero:true, ticks:{color:txt, precision:0}, grid:{color:grid}}});
+  const base = {responsive:true, maintainAspectRatio:false, plugins:{legend:leg}};
+  charts.a = new Chart($('chAlm'), {type:'bar', data:stackData(rows,'almacen'), options:{...base, scales:scales(true)}});
+  charts.u = new Chart($('chUsr'), {type:'bar', data:stackData(rows,'usuario'), options:{...base, scales:scales(true)}});
+  const ds = [...new Set(rows.map(r => r.iso).filter(Boolean))].sort().slice(-14);
+  charts.f = new Chart($('chFec'), {type:'line', data:{labels:ds.map(d => d.slice(8)+'/'+d.slice(5,7)), datasets:ESTS.map(e => ({label:e, borderColor:COLORS[e], backgroundColor:COLORS[e], tension:.35, pointRadius:3, data:ds.map(d => rows.filter(r => r.iso===d && r.estado===e).length)}))}, options:{...base, scales:scales(false)}});
+}
+
+function drawComp(txt,grid){
+  const users = [...new Set(S.rows.map(r => r.usuario).filter(Boolean))];
+  const st = users.map(u => { const m=S.rows.filter(r => r.usuario===u), n=e => m.filter(r => r.estado===e).length; return {u, p:n('Procesado'), o:n('Observado'), d:n('Pendiente'), t:m.length}; }).sort((a,b) => b.p-a.p || a.o-b.o);
+  if(!st.length){ $('avBody').innerHTML = `<div class="${CARD} text-center text-zinc-500">Aún no hay gestiones registradas por usuarios.</div>`; return; }
+  const me = st.findIndex(x => x.u.toLowerCase()===S.u.toLowerCase()), lead = st[0], mine = me>=0 ? st[me] : null;
+  const avg = st.reduce((s,x) => s+x.p, 0)/st.length, maxT = Math.max(...st.map(x => x.t));
+  const medal = i => ['🥇','🥈','🥉'][i] || '#'+(i+1);
+  $('avBody').innerHTML = `
+    <div class="grid md:grid-cols-3 gap-4 mb-4">
+      <div class="${CARD}"><p class="text-sm text-zinc-500">Tu posición</p><p class="text-5xl font-bold mt-1">${mine ? '#'+(me+1) : '—'}</p><p class="text-sm text-zinc-500 mt-1">${mine ? 'de '+st.length+' usuarios' : 'Aún sin gestiones'}</p></div>
+      <div class="${CARD}"><p class="text-sm text-zinc-500">Tus procesadas</p><p class="text-5xl font-bold mt-1" style="color:${COLORS.Procesado}">${mine ? mine.p : 0}</p><p class="text-sm text-zinc-500 mt-1">Promedio del equipo: ${avg.toFixed(1)}</p></div>
+      <div class="${CARD}"><p class="text-sm text-zinc-500">Líder</p><p class="text-2xl font-bold mt-2 truncate">${esc(lead.u)}</p><p class="text-sm text-zinc-500 mt-1">${lead.p} procesadas${mine && me>0 ? ' · te lleva '+(lead.p-mine.p) : ''}</p></div>
+    </div>
+    <div class="${CARD} mb-4">
+      <h3 class="font-semibold mb-1">Ranking de usuarios</h3>
+      <p class="text-xs text-zinc-500 mb-3">Cada guía cuenta para quien hizo su última gestión. El porcentaje es procesadas sobre sus gestiones.</p>
+      <div class="space-y-1">${st.map((x,i) => { const isMe = i===me; return `<div class="flex items-center gap-3 p-3 rounded-2xl ${isMe ? 'bg-[#0A84FF]/10 ring-1 ring-[#0A84FF]/40' : ''}">
+        <span class="w-8 text-center text-xl">${medal(i)}</span>
+        <div class="flex-1 min-w-0"><div class="flex items-center gap-2"><span class="font-semibold truncate">${esc(x.u)}</span>${isMe ? '<span class="text-[11px] px-2 py-0.5 rounded-full bg-[#0A84FF] text-white">Tú</span>' : ''}</div>
+          <div class="flex h-2 rounded-full overflow-hidden bg-zinc-500/15 mt-1.5" style="width:${x.t*100/maxT}%"><div style="width:${x.p*100/x.t}%;background:${COLORS.Procesado}"></div><div style="width:${x.d*100/x.t}%;background:${COLORS.Pendiente}"></div><div style="width:${x.o*100/x.t}%;background:${COLORS.Observado}"></div></div></div>
+        <div class="text-right text-xs leading-5"><p class="font-semibold" style="color:${COLORS.Procesado}">${x.p} proc.</p><p class="text-zinc-500">${x.d} pend. · ${x.o} obs.</p></div>
+        <span class="w-12 text-right font-bold">${pct(x.p,x.t)}%</span></div>`; }).join('')}</div>
+    </div>
+    <div class="${CARD}"><h3 class="font-semibold mb-3">Comparativa por usuario</h3><div style="height:${st.length*54+70}px"><canvas id="chComp"></canvas></div></div>`;
+  charts.c = new Chart($('chComp'), {type:'bar', data:{labels:st.map(x => x.u), datasets:[['Procesado','p'],['Pendiente','d'],['Observado','o']].map(([e,k]) => ({label:e, backgroundColor:COLORS[e], borderRadius:6, data:st.map(x => x[k])}))},
+    options:{indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{legend:{labels:{color:txt, usePointStyle:true, boxWidth:8}}}, scales:{x:{beginAtZero:true, ticks:{color:txt, precision:0}, grid:{color:grid}}, y:{ticks:{color:txt}, grid:{display:false}}}}});
+}
+document.querySelectorAll('.av').forEach(b => b.onclick = () => { S.av = b.dataset.av; drawCharts(); });
 
 /* ---------- Sesión guardada ---------- */
 (async()=>{ const s=sessionStorage.getItem('ses'); if(s){ try{ const {u,k}=JSON.parse(s); await login(u,k);}catch(e){} } })();
