@@ -347,8 +347,18 @@ function ring(c,t){
 }
 function stackData(rows,key){
   const L=[...new Set(rows.map(r => r[key]||'Sin asignar'))].sort();
-  return {labels:L, datasets:ESTS.map(e => ({label:e, backgroundColor:COLORS[e], borderRadius:6, data:L.map(l => rows.filter(r => (r[key]||'Sin asignar')===l && r.estado===e).length)}))};
+  return {labels:L, datasets:ESTS.map(e => ({label:e, backgroundColor:COLORS[e], borderRadius:rnd(12), borderSkipped:false, maxBarThickness:46, barPercentage:.55, data:L.map(l => rows.filter(r => (r[key]||'Sin asignar')===l && r.estado===e).length)}))};
 }
+
+/* ---- Estilo de barras fluidas y minimalistas ---- */
+const rnd = (R=12) => ctx => {
+  const i=ctx.dataIndex, di=ctx.datasetIndex, v=ctx.chart.data.datasets.map(d => d.data[i]||0);
+  if(!v[di]) return 0;
+  const first=v.findIndex(x => x>0), last=v.length-1-[...v].reverse().findIndex(x => x>0);
+  return {topLeft:di===last?R:0, topRight:di===last?R:0, bottomLeft:di===first?R:0, bottomRight:di===first?R:0};
+};
+const tip = txt => ({backgroundColor:txt==='#EBEBF5'?'rgba(44,44,46,.94)':'rgba(255,255,255,.96)', titleColor:txt, bodyColor:txt, borderColor:'rgba(120,120,128,.25)', borderWidth:1, cornerRadius:14, padding:12, usePointStyle:true, boxPadding:4});
+const legend = txt => ({align:'end', labels:{color:txt, usePointStyle:true, pointStyle:'circle', boxWidth:6, boxHeight:6, padding:14}});
 
 function drawCharts(){
   document.querySelectorAll('.av').forEach(b => b.classList.toggle('seg-on', b.dataset.av===S.av));
@@ -383,13 +393,13 @@ function drawCharts(){
     </div>
     <div class="${CARD}"><h3 class="font-semibold mb-3">Evolución por fecha</h3><div class="h-72"><canvas id="chFec"></canvas></div></div>`;
 
-  const leg = {labels:{color:txt, usePointStyle:true, boxWidth:8}};
-  const scales = stk => ({x:{stacked:stk, ticks:{color:txt}, grid:{display:false}}, y:{stacked:stk, beginAtZero:true, ticks:{color:txt, precision:0}, grid:{color:grid}}});
-  const base = {responsive:true, maintainAspectRatio:false, plugins:{legend:leg}};
+  const leg = legend(txt);
+  const scales = stk => ({x:{stacked:stk, ticks:{color:txt, padding:8}, grid:{display:false}, border:{display:false}}, y:{stacked:stk, beginAtZero:true, ticks:{color:txt, precision:0, maxTicksLimit:5, padding:10}, grid:{color:grid, drawTicks:false}, border:{display:false}}});
+  const base = {responsive:true, maintainAspectRatio:false, animation:{duration:800, easing:'easeOutCubic'}, plugins:{legend:leg, tooltip:tip(txt)}};
   charts.a = new Chart($('chAlm'), {type:'bar', data:stackData(rows,'almacen'), options:{...base, scales:scales(true)}});
   charts.u = new Chart($('chUsr'), {type:'bar', data:stackData(rows,'usuario'), options:{...base, scales:scales(true)}});
   const ds = [...new Set(rows.map(r => r.iso).filter(Boolean))].sort().slice(-14);
-  charts.f = new Chart($('chFec'), {type:'line', data:{labels:ds.map(d => d.slice(8)+'/'+d.slice(5,7)), datasets:ESTS.map(e => ({label:e, borderColor:COLORS[e], backgroundColor:COLORS[e], tension:.35, pointRadius:3, data:ds.map(d => rows.filter(r => r.iso===d && r.estado===e).length)}))}, options:{...base, scales:scales(false)}});
+  charts.f = new Chart($('chFec'), {type:'line', data:{labels:ds.map(d => d.slice(8)+'/'+d.slice(5,7)), datasets:ESTS.map(e => ({label:e, borderColor:COLORS[e], backgroundColor:COLORS[e]+'1F', tension:.4, borderWidth:2.5, pointRadius:0, pointHoverRadius:5, fill:true, data:ds.map(d => rows.filter(r => r.iso===d && r.estado===e).length)}))}, options:{...base, interaction:{mode:'index', intersect:false}, scales:scales(false)}});
 }
 
 function drawComp(txt,grid){
@@ -416,8 +426,8 @@ function drawComp(txt,grid){
         <span class="w-12 text-right font-bold">${pct(x.p,x.t)}%</span></div>`; }).join('')}</div>
     </div>
     <div class="${CARD}"><h3 class="font-semibold mb-3">Comparativa por usuario</h3><div style="height:${st.length*54+70}px"><canvas id="chComp"></canvas></div></div>`;
-  charts.c = new Chart($('chComp'), {type:'bar', data:{labels:st.map(x => x.u), datasets:[['Procesado','p'],['Pendiente','d'],['Observado','o']].map(([e,k]) => ({label:e, backgroundColor:COLORS[e], borderRadius:6, data:st.map(x => x[k])}))},
-    options:{indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{legend:{labels:{color:txt, usePointStyle:true, boxWidth:8}}}, scales:{x:{beginAtZero:true, ticks:{color:txt, precision:0}, grid:{color:grid}}, y:{ticks:{color:txt}, grid:{display:false}}}}});
+  charts.c = new Chart($('chComp'), {type:'bar', data:{labels:st.map(x => x.u), datasets:[['Procesado','p'],['Pendiente','d'],['Observado','o']].map(([e,k]) => ({label:e, backgroundColor:COLORS[e], borderRadius:999, borderSkipped:false, barPercentage:.7, categoryPercentage:.75, data:st.map(x => x[k])}))},
+    options:{indexAxis:'y', responsive:true, maintainAspectRatio:false, animation:{duration:800, easing:'easeOutCubic'}, plugins:{legend:legend(txt), tooltip:tip(txt)}, scales:{x:{beginAtZero:true, ticks:{color:txt, precision:0, maxTicksLimit:5}, grid:{color:grid, drawTicks:false}, border:{display:false}}, y:{ticks:{color:txt, padding:8}, grid:{display:false}, border:{display:false}}}}});
 }
 document.querySelectorAll('.av').forEach(b => b.onclick = () => { S.av = b.dataset.av; drawCharts(); });
 
