@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Control de Guías</title>
+<script>
+  (function(){var t=localStorage.getItem('theme');
+  if(t==='dark'||(!t&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark');})();
+</script>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config={darkMode:'class'}</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Segoe UI",Roboto,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  .glass{backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%)}
+  input,select{font-size:16px}
+  .ios-field{background:rgba(120,120,128,.12);border-radius:12px;padding:.65rem .9rem;outline:none;width:100%}
+  .ios-field:focus{box-shadow:0 0 0 3px rgba(10,132,255,.35)}
+  .pill{border-radius:999px;padding:.3rem .7rem;font-weight:600;font-size:13px;appearance:none;-webkit-appearance:none;border:0;outline:none;text-align:center}
+  .p-Pendiente{background:rgba(255,159,10,.18);color:#C77700}
+  .p-Procesado{background:rgba(48,209,88,.18);color:#1E9E45}
+  .p-Observado{background:rgba(255,69,58,.18);color:#D92D20}
+  .dark .p-Pendiente{color:#FFB340}.dark .p-Procesado{color:#4ADE80}.dark .p-Observado{color:#FF6B61}
+  .seg-on{background:#fff;color:#000;box-shadow:0 1px 4px rgba(0,0,0,.18)}
+  .dark .seg-on{background:#636366;color:#fff}
+</style>
+</head>
+<body class="bg-[#F2F2F7] text-black dark:bg-black dark:text-white min-h-screen transition-colors">
+
+<!-- LOGIN -->
+<section id="login" class="min-h-screen flex items-center justify-center p-6">
+  <div class="glass w-full max-w-sm rounded-3xl p-8 bg-white/70 dark:bg-zinc-900/70 shadow-xl shadow-black/5">
+    <div class="w-16 h-16 mx-auto rounded-[22%] bg-[#0A84FF] flex items-center justify-center text-3xl text-white mb-5">📦</div>
+    <h1 class="text-2xl font-bold text-center">Control de Guías</h1>
+    <p class="text-center text-sm text-zinc-500 mb-6">Inicia sesión para continuar</p>
+    <div class="space-y-3">
+      <input id="lu" class="ios-field" placeholder="Usuario" autocomplete="username" autocapitalize="off">
+      <div class="relative">
+        <input id="lp" type="password" class="ios-field pr-12" placeholder="Contraseña" autocomplete="current-password">
+        <button id="eye" type="button" aria-label="Mostrar contraseña" class="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full active:scale-90 transition">👁️</button>
+      </div>
+    </div>
+    <p id="caps" class="text-[#FF9F0A] text-sm mt-3 hidden">⚠️ Mayúsculas activadas</p>
+    <p id="lerr" class="text-[#FF453A] text-sm mt-3 hidden"></p>
+    <button id="lbtn" class="w-full mt-5 bg-[#0A84FF] text-white font-semibold rounded-2xl py-3.5 active:scale-95 transition">Entrar</button>
+  </div>
+</section>
+
+<!-- APP -->
+<div id="app" class="hidden pb-28">
+  <header class="glass sticky top-0 z-30 bg-[#F2F2F7]/80 dark:bg-black/70 border-b border-black/5 dark:border-white/10" style="padding-top:env(safe-area-inset-top)">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
+      <div class="flex-1 min-w-0">
+        <h1 id="ttl" class="text-xl font-bold truncate">Guías</h1>
+        <p id="who" class="text-xs text-zinc-500 truncate"></p>
+      </div>
+      <button id="sync" class="w-10 h-10 rounded-full bg-white dark:bg-zinc-800 active:scale-90 transition" title="Actualizar">↻</button>
+      <button id="theme" class="w-10 h-10 rounded-full bg-white dark:bg-zinc-800 active:scale-90 transition" title="Modo claro / oscuro">🌙</button>
+      <button id="out" class="px-3 h-10 rounded-full bg-white dark:bg-zinc-800 text-sm font-medium text-[#FF453A] active:scale-90 transition">Salir</button>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 pt-4">
+    <!-- Vista Guías -->
+    <section id="v-guias">
+      <div id="segWrap" class="hidden mb-3">
+        <div class="flex p-1 rounded-xl bg-zinc-300/40 dark:bg-zinc-800 text-sm font-semibold">
+          <button data-scope="mis" class="seg flex-1 py-1.5 rounded-lg transition">Mis almacenes</button>
+          <button data-scope="todos" class="seg flex-1 py-1.5 rounded-lg transition">Ver todos</button>
+        </div>
+      </div>
+      <div class="glass rounded-3xl p-3 bg-white/70 dark:bg-zinc-900/70 shadow-sm mb-4">
+        <input id="q" class="ios-field mb-2" type="search" placeholder="Buscar guía o PO">
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-2">
+          <select id="fAlm" class="ios-field"></select>
+          <select id="fEst" class="ios-field">
+            <option value="">Todos los estados</option><option>Pendiente</option><option>Procesado</option><option>Observado</option>
+          </select>
+          <input id="fDe" type="date" class="ios-field" title="Desde">
+          <input id="fHa" type="date" class="ios-field" title="Hasta">
+          <div class="flex gap-2 col-span-2 md:col-span-1">
+            <button id="xCsv" class="flex-1 bg-[#0A84FF] text-white rounded-xl font-semibold text-sm active:scale-95 transition">CSV</button>
+            <button id="xXls" class="flex-1 bg-[#30D158] text-black rounded-xl font-semibold text-sm active:scale-95 transition">XLS</button>
+          </div>
+        </div>
+        <p id="cnt" class="text-xs text-zinc-500 mt-2 px-1"></p>
+      </div>
+
+      <div id="cards" class="md:hidden space-y-3"></div>
+      <div class="hidden md:block glass rounded-3xl overflow-hidden bg-white/70 dark:bg-zinc-900/70 shadow-sm">
+        <table class="w-full text-sm">
+          <thead class="text-left text-zinc-500 border-b border-black/5 dark:border-white/10">
+            <tr><th class="p-3">PO</th><th>Guía</th><th>Subinv.</th><th>Fecha</th><th>Almacén</th><th>Estado</th><th class="w-1/4">Observación</th></tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+      <p id="empty" class="hidden text-center text-zinc-500 py-10">No hay guías con estos filtros.</p>
+    </section>
+
+    <!-- Vista Avance -->
+    <section id="v-avance" class="hidden">
+      <div id="widgets" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4"></div>
+      <div class="grid md:grid-cols-2 gap-4">
+        <div class="glass rounded-3xl p-4 bg-white/70 dark:bg-zinc-900/70 shadow-sm"><h3 class="font-semibold mb-2">Por almacén</h3><div class="h-72"><canvas id="chAlm"></canvas></div></div>
+        <div class="glass rounded-3xl p-4 bg-white/70 dark:bg-zinc-900/70 shadow-sm"><h3 class="font-semibold mb-2">Por usuario</h3><div class="h-72"><canvas id="chUsr"></canvas></div></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Tab bar -->
+  <nav class="glass fixed bottom-0 inset-x-0 z-30 bg-white/80 dark:bg-zinc-900/80 border-t border-black/5 dark:border-white/10" style="padding-bottom:env(safe-area-inset-bottom)">
+    <div class="max-w-md mx-auto flex">
+      <button data-tab="guias" class="tab flex-1 py-2.5 text-xs font-medium active:scale-95 transition"><div class="text-xl">📋</div>Guías</button>
+      <button data-tab="avance" class="tab flex-1 py-2.5 text-xs font-medium active:scale-95 transition"><div class="text-xl">📊</div>Avance</button>
+    </div>
+  </nav>
+</div>
+
+<div id="toast" class="fixed left-1/2 -translate-x-1/2 bottom-24 z-50 px-4 py-2 rounded-full bg-black/80 text-white text-sm opacity-0 pointer-events-none transition-opacity"></div>
+
+<script>
+/* ===== CONFIGURACIÓN: pega aquí la URL de tu Web App de Apps Script ===== */
+const API_URL = 'https://script.google.com/macros/s/AKfycbwMAvC-uED-7nBwKEK2PiS6XAnnRwauArcPpVHGCRAUaSo3zVi-UgotBjYJ5jC7MJEV/exec';
+/* ======================================================================= */
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const COLORS = {Pendiente:'#FF9F0A', Procesado:'#30D158', Observado:'#FF453A'};
+const S = { u:null, k:null, rol:'', alms:[], rows:[], scope:'mis', tab:'guias' };
+let charts = {};
+
+/* ---------- API ---------- */
+async function api(body){
+  const r = await fetch(API_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify({usuario:S.u, clave:S.k, ...body})});
+  return r.json();
+}
+function toast(m){const t=$('toast');t.textContent=m;t.style.opacity=1;clearTimeout(t._t);t._t=setTimeout(()=>t.style.opacity=0,1800)}
+
+/* ---------- Tema ---------- */
+function paintTheme(){ $('theme').textContent = document.documentElement.classList.contains('dark') ? '☀️' : '🌙'; }
+$('theme').onclick = () => {
+  const d = document.documentElement.classList.toggle('dark');
+  localStorage.setItem('theme', d ? 'dark' : 'light');
+  paintTheme(); if(S.tab==='avance') drawCharts();
+};
+paintTheme();
+
+/* ---------- Login ---------- */
+async function login(u,k){
+  S.u=u; S.k=k;
+  const r = await api({action:'login'});
+  if(!r.ok) throw new Error(r.error);
+  S.u=r.usuario; S.rol=r.rol; S.alms=r.almacenes||[];
+  sessionStorage.setItem('ses', JSON.stringify({u:S.u,k}));
+  $('login').classList.add('hidden'); $('app').classList.remove('hidden');
+  $('who').textContent = S.u + ' · ' + S.rol;
+  S.scope = S.rol==='Administrador' ? 'todos' : 'mis';
+  $('segWrap').classList.toggle('hidden', S.rol==='Administrador');
+  await load();
+}
+$('lbtn').onclick = async () => {
+  const b=$('lbtn'); b.textContent='Entrando…'; $('lerr').classList.add('hidden');
+  try{ await login($('lu').value, $('lp').value); }
+  catch(e){ $('lerr').textContent=e.message; $('lerr').classList.remove('hidden'); }
+  b.textContent='Entrar';
+};
+$('lp').addEventListener('keydown', e => e.key==='Enter' && $('lbtn').click());
+$('eye').onclick = () => {
+  const show = $('lp').type === 'password';
+  $('lp').type = show ? 'text' : 'password';
+  $('eye').textContent = show ? '🙈' : '👁️';
+  $('eye').setAttribute('aria-label', show ? 'Ocultar contraseña' : 'Mostrar contraseña');
+};
+['lu','lp'].forEach(id => ['keydown','keyup'].forEach(ev => $(id).addEventListener(ev, e => {
+  if(e.getModifierState) $('caps').classList.toggle('hidden', !e.getModifierState('CapsLock'));
+})));
+$('lp').addEventListener('blur', () => $('caps').classList.add('hidden'));
+$('out').onclick = () => { sessionStorage.removeItem('ses'); location.reload(); };
+$('sync').onclick = () => load(true);
+
+/* ---------- Datos ---------- */
+async function load(msg){
+  const r = await api({action:'list'});
+  if(!r.ok) return toast(r.error);
+  S.rows = r.rows;
+  fillAlmacenes(); render();
+  if(msg) toast('Datos actualizados');
+}
+function misAlmacenes(){
+  const set = new Set(S.alms.map(a=>a.toLowerCase()));
+  S.rows.forEach(r => { if(r.usuario && r.usuario.toLowerCase()===S.u.toLowerCase()) set.add(r.almacen.toLowerCase()); });
+  return set;
+}
+function scoped(){
+  if(S.rol==='Administrador' || S.scope==='todos') return S.rows;
+  const m = misAlmacenes();
+  return m.size ? S.rows.filter(r => m.has(r.almacen.toLowerCase())) : S.rows;
+}
+function fillAlmacenes(){
+  const cur = $('fAlm').value;
+  const list = [...new Set(scoped().map(r=>r.almacen).filter(Boolean))].sort();
+  $('fAlm').innerHTML = '<option value="">Todos los almacenes</option>' + list.map(a=>`<option>${esc(a)}</option>`).join('');
+  if(list.includes(cur)) $('fAlm').value = cur;
+}
+function filtered(){
+  const q=$('q').value.trim().toLowerCase(), a=$('fAlm').value, e=$('fEst').value, d1=$('fDe').value, d2=$('fHa').value;
+  return scoped().filter(r =>
+    (!q || r.guia.toLowerCase().includes(q) || r.po.toLowerCase().includes(q)) &&
+    (!a || r.almacen===a) && (!e || r.estado===e) &&
+    (!d1 || r.fecha>=d1) && (!d2 || r.fecha<=d2));
+}
+
+/* ---------- Render Guías ---------- */
+const estSel = r => `<select class="pill p-${r.estado} est" data-row="${r.row}">${['Pendiente','Procesado','Observado'].map(x=>`<option ${x===r.estado?'selected':''}>${x}</option>`).join('')}</select>`;
+const obsIn = r => `<input class="ios-field obs" data-row="${r.row}" value="${esc(r.obs)}" placeholder="Agregar nota…">`;
+function render(){
+  const rows = filtered();
+  $('cnt').textContent = rows.length + ' guía(s)';
+  $('empty').classList.toggle('hidden', rows.length>0);
+  $('tbody').innerHTML = rows.map(r => `<tr class="border-b border-black/5 dark:border-white/5 last:border-0" data-r="${r.row}">
+    <td class="p-3 font-medium">${esc(r.po)}</td><td>${esc(r.guia)}</td><td>${esc(r.sub)}</td><td>${esc(r.fecha)}</td><td>${esc(r.almacen)}</td>
+    <td>${estSel(r)}</td><td class="pr-3 py-2">${obsIn(r)}</td></tr>`).join('');
+  $('cards').innerHTML = rows.map(r => `<div class="glass rounded-3xl p-4 bg-white/70 dark:bg-zinc-900/70 shadow-sm" data-r="${r.row}">
+    <div class="flex items-start justify-between gap-2"><div><p class="font-semibold">${esc(r.guia)}</p><p class="text-xs text-zinc-500">PO ${esc(r.po)} · ${esc(r.sub)}</p></div>${estSel(r)}</div>
+    <p class="text-xs text-zinc-500 mt-2">${esc(r.almacen)} · ${esc(r.fecha)}</p><div class="mt-3">${obsIn(r)}</div></div>`).join('');
+  document.querySelectorAll('.seg').forEach(b => b.classList.toggle('seg-on', b.dataset.scope===S.scope));
+  if(S.tab==='avance') drawCharts();
+}
+
+async function save(row, patch, el){
+  const r = S.rows.find(x=>x.row==row);
+  const prev = {estado:r.estado, obs:r.obs};
+  Object.assign(r, patch);
+  const res = await api({action:'update', row, guia:r.guia, ...patch});
+  if(!res.ok){ Object.assign(r, prev); toast(res.error); render(); return; }
+  r.usuario = res.usuario; toast('Guardado');
+  if(patch.estado) render();
+}
+document.addEventListener('change', e => {
+  const t=e.target;
+  if(t.classList.contains('est')) save(t.dataset.row, {estado:t.value});
+  else if(t.classList.contains('obs')) save(t.dataset.row, {obs:t.value});
+});
+['q','fAlm','fEst','fDe','fHa'].forEach(id => $(id).addEventListener('input', render));
+document.querySelectorAll('.seg').forEach(b => b.onclick = () => { S.scope=b.dataset.scope; fillAlmacenes(); render(); });
+
+/* ---------- Exportar ---------- */
+const HEAD = ['PO','GUIA','SUBINVENTARIO','FECHA DE TRANSACCION','ALMACEN','ESTADO','OBSERVACION','USUARIO'];
+const cells = r => [r.po,r.guia,r.sub,r.fecha,r.almacen,r.estado,r.obs,r.usuario];
+function download(name, mime, content){
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([content],{type:mime})); a.download=name; a.click(); URL.revokeObjectURL(a.href);
+}
+$('xCsv').onclick = () => {
+  const csv = [HEAD, ...filtered().map(cells)].map(l => l.map(v => '"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');
+  download('guias.csv','text/csv;charset=utf-8','\uFEFF'+csv);
+};
+$('xXls').onclick = () => {
+  const t = '<table border="1"><tr>'+HEAD.map(h=>`<th>${h}</th>`).join('')+'</tr>'+filtered().map(r=>'<tr>'+cells(r).map(v=>`<td>${esc(v)}</td>`).join('')+'</tr>').join('')+'</table>';
+  download('guias.xls','application/vnd.ms-excel','<html><head><meta charset="UTF-8"></head><body>'+t+'</body></html>');
+};
+
+/* ---------- Pestañas y Avance ---------- */
+document.querySelectorAll('.tab').forEach(b => b.onclick = () => {
+  S.tab=b.dataset.tab;
+  $('v-guias').classList.toggle('hidden', S.tab!=='guias');
+  $('v-avance').classList.toggle('hidden', S.tab!=='avance');
+  $('ttl').textContent = S.tab==='guias' ? 'Guías' : 'Avance';
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('text-[#0A84FF]', x===b));
+  if(S.tab==='avance') drawCharts();
+});
+document.querySelector('.tab').classList.add('text-[#0A84FF]');
+
+function drawCharts(){
+  const rows = scoped(), dark = document.documentElement.classList.contains('dark');
+  const cnt = e => rows.filter(r=>r.estado===e).length;
+  const W = [['Total',rows.length,'#0A84FF'],['Procesadas',cnt('Procesado'),COLORS.Procesado],['Pendientes',cnt('Pendiente'),COLORS.Pendiente],['Observadas',cnt('Observado'),COLORS.Observado]];
+  $('widgets').innerHTML = W.map(([l,n,c]) => `<div class="glass rounded-3xl p-4 bg-white/70 dark:bg-zinc-900/70 shadow-sm"><div class="w-3 h-3 rounded-full mb-3" style="background:${c}"></div><p class="text-3xl font-bold">${n}</p><p class="text-sm text-zinc-500">${l}</p></div>`).join('');
+  const stack = key => {
+    const labels = [...new Set(rows.map(r => r[key] || '(sin dato)'))].sort();
+    return {labels, datasets: ['Procesado','Pendiente','Observado'].map(e => ({label:e, backgroundColor:COLORS[e], borderRadius:6, data:labels.map(l => rows.filter(r => (r[key]||'(sin dato)')===l && r.estado===e).length)}))};
+  };
+  const txt = dark ? '#EBEBF5' : '#3C3C43', grid = dark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.06)';
+  const opt = {responsive:true, maintainAspectRatio:false, plugins:{legend:{labels:{color:txt}}}, scales:{x:{stacked:true,ticks:{color:txt},grid:{display:false}}, y:{stacked:true,ticks:{color:txt,precision:0},grid:{color:grid}}}};
+  [['chAlm','almacen'],['chUsr','usuario']].forEach(([id,key]) => {
+    if(charts[id]) charts[id].destroy();
+    charts[id] = new Chart($(id), {type:'bar', data:stack(key), options:opt});
+  });
+}
+
+/* ---------- Sesión guardada ---------- */
+(async()=>{ const s=sessionStorage.getItem('ses'); if(s){ try{ const {u,k}=JSON.parse(s); await login(u,k);}catch(e){} } })();
+</script>
+</body>
+</html>
