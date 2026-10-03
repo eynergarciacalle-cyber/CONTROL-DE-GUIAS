@@ -85,11 +85,12 @@
       </div>
       <div class="glass rounded-3xl p-3 bg-white/70 dark:bg-zinc-900/70 shadow-sm mb-4">
         <input id="q" class="ios-field mb-2" type="search" placeholder="Buscar guía o PO">
-        <div class="grid grid-cols-2 md:grid-cols-5 gap-2">
+        <div id="fGrid" class="grid grid-cols-2 md:grid-cols-5 gap-2">
           <select id="fAlm" class="ios-field"></select>
           <select id="fEst" class="ios-field">
             <option value="">Todos los estados</option><option>Pendiente</option><option>Procesado</option><option>Observado</option>
           </select>
+          <select id="fUsr" class="ios-field hidden"></select>
           <input id="fDe" type="date" class="ios-field" title="Desde">
           <input id="fHa" type="date" class="ios-field" title="Hasta">
           <div class="flex gap-2 col-span-2 md:col-span-1">
@@ -104,7 +105,7 @@
       <div class="hidden md:block glass rounded-3xl overflow-hidden bg-white/70 dark:bg-zinc-900/70 shadow-sm">
         <table class="w-full text-sm">
           <thead class="text-left text-zinc-500 border-b border-black/5 dark:border-white/10">
-            <tr><th class="p-3">PO</th><th>Guía</th><th>Subinv.</th><th>Fecha</th><th>Almacén</th><th>Estado</th><th class="w-1/4">Observación</th></tr>
+            <tr><th class="p-3">PO</th><th>Guía</th><th>Subinv.</th><th>Fecha</th><th>Almacén</th><th>Estado</th><th id="thMod">Modificó</th><th class="w-1/4">Observación</th></tr>
           </thead>
           <tbody id="tbody"></tbody>
         </table>
@@ -203,12 +204,14 @@ async function load(msg){
   const r = await api({action:'list'});
   if(!r.ok) return toast(r.error);
   S.rows = r.rows.map(x => ({...x, ...normFecha(x.fecha)}));
-  fillAlmacenes(); render();
+  fillAlmacenes(); fillUsuarios(); render();
   if(msg) toast('Datos actualizados');
 }
 function normFecha(v){
   if(!v) return {iso:'', fecha:''};
   if(/^\d{4}-\d{2}-\d{2}$/.test(v)) return {iso:v, fecha:v.split('-').reverse().join('/')};
+  let m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(v);
+  if(m) return {iso:`${m[1]}-${m[2]}-${m[3]}`, fecha:`${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}`};
   const d = new Date(v); if(isNaN(d)) return {iso:'', fecha:String(v)};
   const p = n => String(n).padStart(2,'0');
   return {iso:`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`, fecha:`${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`};
@@ -229,11 +232,19 @@ function fillAlmacenes(){
   $('fAlm').innerHTML = '<option value="">Todos los almacenes</option>' + list.map(a=>`<option>${esc(a)}</option>`).join('');
   if(list.includes(cur)) $('fAlm').value = cur;
 }
+const verMod = () => S.rol==='Administrador' || S.scope==='todos';
+const modHtml = r => r.usuario ? `<span class="font-medium">${esc(r.usuario)}</span>${r.fechaCambio ? `<br><span class="text-xs text-zinc-500">${esc(r.fechaCambio)}</span>` : ''}` : '<span class="text-zinc-400">—</span>';
+function fillUsuarios(){
+  const cur = $('fUsr').value;
+  const list = [...new Set(scoped().map(r=>r.usuario).filter(Boolean))].sort();
+  $('fUsr').innerHTML = '<option value="">Todos los usuarios</option>' + list.map(a=>`<option>${esc(a)}</option>`).join('');
+  if(list.includes(cur)) $('fUsr').value = cur;
+}
 function filtered(){
-  const q=$('q').value.trim().toLowerCase(), a=$('fAlm').value, e=$('fEst').value, d1=$('fDe').value, d2=$('fHa').value;
+  const q=$('q').value.trim().toLowerCase(), a=$('fAlm').value, e=$('fEst').value, d1=$('fDe').value, d2=$('fHa').value, us=verMod() ? $('fUsr').value : '';
   return scoped().filter(r =>
     (!q || r.guia.toLowerCase().includes(q) || r.po.toLowerCase().includes(q)) &&
-    (!a || r.almacen===a) && (!e || r.estado===e) &&
+    (!a || r.almacen===a) && (!e || r.estado===e) && (!us || r.usuario===us) &&
     (!d1 || r.iso>=d1) && (!d2 || r.iso<=d2));
 }
 
@@ -241,15 +252,19 @@ function filtered(){
 const estSel = r => `<button type="button" class="pill p-${r.estado} estbtn active:scale-95 transition" data-row="${r.row}">${r.estado}<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="opacity-70"><path d="M2 3.5l3 3 3-3"/></svg></button>`;
 const obsIn = r => `<input class="ios-field obs" data-row="${r.row}" value="${esc(r.obs)}" placeholder="Agregar nota…">`;
 function render(){
-  const rows = filtered();
+  const rows = filtered(), vm = verMod();
+  $('thMod').style.display = vm ? '' : 'none';
+  $('fUsr').classList.toggle('hidden', !vm);
+  $('fGrid').classList.toggle('md:grid-cols-5', !vm);
+  $('fGrid').classList.toggle('md:grid-cols-6', vm);
   $('cnt').textContent = rows.length + ' guía(s)';
   $('empty').classList.toggle('hidden', rows.length>0);
   $('tbody').innerHTML = rows.map(r => `<tr class="border-b border-black/5 dark:border-white/5 last:border-0" data-r="${r.row}">
     <td class="p-3 font-medium">${esc(r.po)}</td><td>${esc(r.guia)}</td><td>${esc(r.sub)}</td><td>${esc(r.fecha)}</td><td>${esc(r.almacen)}</td>
-    <td>${estSel(r)}</td><td class="pr-3 py-2">${obsIn(r)}</td></tr>`).join('');
+    <td>${estSel(r)}</td>${vm ? `<td class="mod text-xs leading-tight pr-2">${modHtml(r)}</td>` : ''}<td class="pr-3 py-2">${obsIn(r)}</td></tr>`).join('');
   $('cards').innerHTML = rows.map(r => `<div class="glass rounded-3xl p-4 bg-white/70 dark:bg-zinc-900/70 shadow-sm" data-r="${r.row}">
     <div class="flex items-start justify-between gap-2"><div><p class="font-semibold">${esc(r.guia)}</p><p class="text-xs text-zinc-500">PO ${esc(r.po)} · ${esc(r.sub)}</p></div>${estSel(r)}</div>
-    <p class="text-xs text-zinc-500 mt-2">${esc(r.almacen)} · ${esc(r.fecha)}</p><div class="mt-3">${obsIn(r)}</div></div>`).join('');
+    <p class="text-xs text-zinc-500 mt-2">${esc(r.almacen)} · ${esc(r.fecha)}</p>${vm ? `<p class="mod text-xs text-zinc-500 mt-1">Modificó: ${r.usuario ? esc(r.usuario) + (r.fechaCambio ? ' · ' + esc(r.fechaCambio) : '') : '—'}</p>` : ''}<div class="mt-3">${obsIn(r)}</div></div>`).join('');
   document.querySelectorAll('.seg').forEach(b => b.classList.toggle('seg-on', b.dataset.scope===S.scope));
   if(S.tab==='avance') drawCharts();
 }
@@ -260,8 +275,10 @@ async function save(row, patch, el){
   Object.assign(r, patch);
   const res = await api({action:'update', row, guia:r.guia, ...patch});
   if(!res.ok){ Object.assign(r, prev); toast(res.error); render(); return; }
-  r.usuario = res.usuario; toast('Guardado');
+  r.usuario = res.usuario; r.fechaCambio = res.fechaCambio || r.fechaCambio; toast('Guardado');
+  fillUsuarios();
   if(patch.estado) render();
+  else document.querySelectorAll(`[data-r="${row}"] .mod`).forEach(el => { el.innerHTML = el.tagName==='TD' ? modHtml(r) : 'Modificó: ' + esc(r.usuario) + (r.fechaCambio ? ' · ' + esc(r.fechaCambio) : ''); });
 }
 document.addEventListener('change', e => {
   const t=e.target;
@@ -306,12 +323,12 @@ document.addEventListener('click', e => {
 document.addEventListener('keydown', e => e.key==='Escape' && closeMenu());
 addEventListener('scroll', () => { if(mRow && innerWidth>=768) closeMenu(); }, true);
 addEventListener('resize', closeMenu);
-['q','fAlm','fEst','fDe','fHa'].forEach(id => $(id).addEventListener('input', render));
-document.querySelectorAll('.seg').forEach(b => b.onclick = () => { S.scope=b.dataset.scope; fillAlmacenes(); render(); });
+['q','fAlm','fEst','fUsr','fDe','fHa'].forEach(id => $(id).addEventListener('input', render));
+document.querySelectorAll('.seg').forEach(b => b.onclick = () => { S.scope=b.dataset.scope; fillAlmacenes(); fillUsuarios(); render(); });
 
 /* ---------- Exportar ---------- */
-const HEAD = ['PO','GUIA','SUBINVENTARIO','FECHA DE TRANSACCION','ALMACEN','ESTADO','OBSERVACION','USUARIO'];
-const cells = r => [r.po,r.guia,r.sub,r.fecha,r.almacen,r.estado,r.obs,r.usuario];
+const HEAD = ['PO','GUIA','SUBINVENTARIO','FECHA DE TRANSACCION','ALMACEN','ESTADO','OBSERVACION','USUARIO','FECHA CAMBIO'];
+const cells = r => [r.po,r.guia,r.sub,r.fecha,r.almacen,r.estado,r.obs,r.usuario,r.fechaCambio];
 function download(name, mime, content){
   const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([content],{type:mime})); a.download=name; a.click(); URL.revokeObjectURL(a.href);
 }
